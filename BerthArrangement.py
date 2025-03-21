@@ -3,13 +3,24 @@ from sp import SP
 from data_loader import DataLoader
 from model import Model
 
+from params import Params
+
 class BerthArrangement():
     def __init__(self, V, L, E):
         self.V = V
         self.L = L      # shore length
         self.E = E      # shore power(sp) set
+        
+        self.params = Params()
     
-    
+    def adjust(self, b, s):
+        assert len(b) == len(self.V)
+        assert len(s) == len(self.V)
+        
+        # TODO
+        pass
+
+
     def get_mn(self, b, s, l, t):
         num_ships = len(b)
         m = [[0] * num_ships for _ in range(num_ships)]
@@ -29,12 +40,24 @@ class BerthArrangement():
                     n[i][j] = 1
 
         return m, n
-    
-    
-    def get_target_score(self):
-        # TODO
-        pass
-    
+
+
+    def get_score(self):
+        total_efficiency_score = 0
+        emissions = 0
+        
+        for ship in self.V:
+            total_efficiency_score += ship.record[-1]["end_time"] - ship.arrive_time
+            
+            engine_rate = ship.engine_power * ship.engine_power_coeff * ship.engine_fuel_consumption
+            for each in ship.record:
+                if each["use_sp"]:
+                    emissions += each["operation_time"] * engine_rate
+        
+        total_emission_score = emissions * sum(w_p * c_p for w_p, c_p in zip(self.params.w, self.params.C))
+            
+        return total_efficiency_score, total_emission_score
+
     def arrange(self):
         # TODO
         # get decision variables ---------
@@ -44,8 +67,7 @@ class BerthArrangement():
         
         
         ## process
-        assert len(b) == len(self.V)
-        assert len(s) == len(self.V)
+        b, s = self.adjust(b, s)
         
         rearrange_times = []
         for idx, (berth_location, start_time) in enumerate(zip(b, s)):
@@ -59,11 +81,8 @@ class BerthArrangement():
                 use_sp = False
                 
             ship.operate(start_time, end_time, use_sp)
-        
-        cur_m, cur_n = self.get_mn(b, s, 
-                                   [ship.l for ship in self.V],
-                                   [ship.process_time for ship in self.V])
-        self.efficiency_score, self.emmision_score = self.get_target_score()
+                
+        self.efficiency_score, self.emmision_score = self.get_score()
         
         
         # TODO: 多条船同时离开
@@ -124,7 +143,7 @@ class BerthArrangement():
                 
             ship.operate(start_time, end_time, use_sp)
             
-        efficiency_score, emmision_score = self.get_target_score()
+        efficiency_score, emmision_score = self.get_score()
         
         return efficiency_score, emmision_score, rearrange_times
 
