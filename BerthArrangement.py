@@ -58,6 +58,11 @@ class BerthArrangement():
             
         return total_efficiency_score, total_emission_score
 
+    
+    def compare(self, efficiency1, emission1, efficiency2, emission2):
+        return efficiency1 + emission1 < efficiency2 + emission2
+    
+    
     def arrange(self):
         # TODO
         # get decision variables ---------
@@ -84,18 +89,33 @@ class BerthArrangement():
                 
         self.efficiency_score, self.emmision_score = self.get_score()
         
-        
-        # TODO: 多条船同时离开
-        
-        rearrange_times.sort()
+        # sort
+        rearrange_times = sorted(rearrange_times, key=lambda x: x[0])
         
         ## rearrange
-        for time, idx in rearrange_times:
+        i = 0
+        while i < len(rearrange_times):
+            time, idx = rearrange_times[i]
+            
             if self.need_rearrange():
                 # update status
                 self.V[idx].isfinished = True
+                # multiple ships finish at the same time
+                while rearrange_times[i+1][0] == time:
+                    i += 1
+                    idx = rearrange_times[i][1]
+                    self.V[idx].isfinished = True
                 
-                self.rearrange(time)
+                new_efficiency, new_emission, new_rearrange_times = self.rearrange(time)
+                if self.compare(self.efficiency_score, self.emmision_score, new_efficiency, new_emission):
+                    self.efficiency_score = new_efficiency
+                    self.emmision_score = new_emission
+                    # update rearrange_times
+                    rearrange_times = new_rearrange_times
+                    i = 0
+            i += 1
+                
+        return self.efficiency_score, self.emmision_score
 
             
     def need_rearrange(self):
@@ -112,12 +132,12 @@ class BerthArrangement():
         # --------------------------------
         
         ## process
-        assert len(new_b) == len(self.V)
-        assert len(new_s) == len(self.V)
+        new_b, new_s = self.adjust(new_b, new_s)
         
         rearrange_times = []
         for idx, (berth_location, start_time) in enumerate(zip(new_b, new_s)):
             ship = self.V[idx]
+            
             if ship.isfinished or ship.beth_location == berth_location:
                 continue
             
@@ -132,7 +152,7 @@ class BerthArrangement():
             else:
                 cur_process_time = ship.process_time
                 
-            start_time = time + start_time          # TODO
+            start_time = time + start_time
             end_time = start_time + ship.process_time
             rearrange_times.append((end_time, idx))
             
